@@ -1,85 +1,75 @@
 <?php
 	session_start();
-    //check if the user is already logged in,if yes then redirect him to wellcome page
-    if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] ===true){
-        header("location:welcome_demo.php");
-        exit;
+//kiểm tra xem người dùng đã đăng nhập chưa, nếu có thì chuyển hướng người đó đến trang chào mừng
+if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] ==true){
+    header("location:dashboard.php");
+    exit();
+}
+//bao gồm tệp cấu hình
+require_once "config_demo.php";
+//xác định các biến và khởi tạo với các giá trị trống
+$username=$password="";
+$username_err=$password_err=$login_err="";
+//xử lý dữ liệu biểu mẫu khi biểu mẫu được gửi
+if($_SERVER["REQUEST_METHOD"]=="POST"){
+    //kiểm tra xem tên người dùng có trống không
+    if(empty(trim($_POST["username"]))){
+        $username_err="enter username";
+    }else{
+        $username=$_POST["username"];
     }
+    //kiểm tra xem mật khẩu có trống không
+    if(empty(trim($_POST["password"]))){
+        $password_err="enter password";
+    }else{
+        $password=$_POST["password"];
+    }
+    //xác thực thông tin đăng nhập
+    if(empty($username_err) && empty($password_err)){
+        //chuẩn bị một tuyên bố lựa chọn
 
-    //include config file
-    require_once "config_demo.php";
+        $sql="select id,username,password from users1 where username=?";
+        //ràng buộc các biến với câu lệnh chuẩn bị làm tham số
+        if($stmt=$mysqli->prepare($sql)){
+            //thiết lập các thông số
+            $stmt->bind_param("s",$param_username);
+              //cố gắng thực hiện tuyên bố đã chuẩn bị
+            $param_username=$username;
+            if($stmt->execute()){
+                //kết quả lưu trữ
+              $stmt->store_result();
+                //kiểm tra xem tên người dùng có tồn tại không, nếu có thì hãy thay đổi mật khẩu
+              if($stmt->num_rows==1){
+                  //ràng buộc các biến kết quả
+                  $stmt->bind_result($id,$username,$hashed_password);
+                  //mật khẩu chính xác, vì vậy hãy bắt đầu một phiên mới
+                  if($stmt->fetch()){
+                      if(password_verify($password,$hashed_password)){
+                          //store data in seesion varibles
+                          session_start();
+                          $_SESSION["loggedin"]=true;
+                          $_SESSION["id"]=$id;
+                          $_SESSION["username"]=$username;
 
-    //define variables and initialize with empty values
-    $username = $password ="";
-    $username_err = $password_err = $login_err="";
+                          //chuyển hướng người dùng đến trang chào mừng
+                          header("location:dashboard.php");
 
-    //processing form data when form is submitted
-    if($_SERVER["REQUEST_METHOD"] == "POST"){
-        //check if username is empty
-        if(empty(trim($_POST["username"]))){
-            $username_err="Please enter username.";
-        }else{
-            $username = trim($_POST["username"]);
-        }
-
-        //check if password is empty
-        if(empty(trim($_POST["password"]))){
-            $password_err = "Please enter your password";
-        }else{
-            $password = trim($_POST["password"]);
-        }
-
-        //validate credentials
-        if(empty($username_err) && empty($password_err)){
-            //prepare a select statement
-            $sql="select id,username,password from users1 where username=?";
-            if($stmt=$mysqli->prepare($sql)){
-                //bind variables to the prepare statement as parametors
-                $stmt->bind_param("s",$param_username);
-
-                //set parameters
-                $param_username = $username;
-
-                //attempt to execute the prepared statement
-                if($stmt->execute()){
-                    //store result
-                    $stmt->store_result();
-
-                    //check if username exists,if yes then varify password
-                    if($stmt->num_rows ==1){
-                        //bind result variables
-                        $stmt->bind_result($id,$username,$hashed_password);
-                        if($stmt->fetch()){
-                            if(password_verify($password,$hashed_password)){
-                                //password is correct, so start a new session
-                                session_start();
-
-                                //store data in seesion varibles
-                                $_SESSION["loggedin"]=true;
-                                $_SESSION["id"]=$id;
-                                $_SESSION["username"]=$username;
-
-                                //redrect user to welcom page
-                                header("location:welcome_demo.php");
-                            }else{
-                                //password doesn't exist display a generic error message
-                                $login_err="Invalid username or password";
-                            }
-                        }
-
-                        
-                    }else{
-                            $login_err="Invalid username or password";
-                        }
-                }else{
-                    echo "Oops! Something went wrong.Plese try again later.";
-                }
-
-                $stmt->close();
+                      }else{
+                          $login_err="username or password false.";
+                      }
+                  }
+              }else{
+                  $login_err="username or password false.";
+              }
+            }else{
+                echo "Oops! Something went wrong.Plese try again later.";
             }
+            $stmt->close();
         }
-        $mysqli->close();
-    }
+
+    }$mysqli->close();
+
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -97,11 +87,7 @@
         <h2>Login</h2>
         <p>Please fill in your credentials to login.</p>
 
-        <?php 
-        if(!empty($login_err)){
-            echo '<div class="alert alert-danger">' . $login_err . '</div>';
-        }        
-        ?>
+       
 
         <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
             <div class="form-group">
@@ -114,6 +100,11 @@
                 <input type="password" name="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>">
                 <span class="invalid-feedback"><?php echo $password_err; ?></span>
             </div>
+            <?php 
+        if(!empty($login_err)){
+            echo '<div class="alert alert-danger">' . $login_err . '</div>';
+        }        
+        ?>
             <div class="form-group">
                 <input type="submit" class="btn btn-primary" value="Login">
             </div>
